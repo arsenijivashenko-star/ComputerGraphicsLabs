@@ -1,5 +1,7 @@
 import os
-from PIL import Image, ImageEnhance
+import time
+import tkinter as tk
+from PIL import Image, ImageEnhance, ImageDraw, ImageFont, ImageTk
 
 def convert_formats():
     """1. Конвертація форматів зображень з порівнянням розмірів"""
@@ -21,7 +23,6 @@ def convert_formats():
             original_size = os.path.getsize(path)
             img = Image.open(path)
             
-            # Конвертація в RGB для сумісності з форматами на кшталт JPEG (якщо є альфа-канал)
             if target_format == "JPEG" and img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
                 
@@ -258,18 +259,15 @@ def crop_and_split():
                 return
 
             if choice == "2":
-                # Залишаємо область, видаляємо все ззовні
                 cropped_img = img.crop((left, top, right, bottom))
                 out_path = input("Введіть шлях для збереження вирізаної області: ").strip()
                 cropped_img.save(out_path)
                 print(f"[Успіх] Область вирізано і збережено у {out_path}")
             else:
-                # Видаляємо вибрану область всередині (заповнюємо прозорістю або суцільним кольором)
                 img_modified = img.convert("RGBA")
                 fill_choice = input("Заповнити вирізану ділянку прозорістю (1) чи білим кольором (2)? ").strip()
                 fill_color = (0, 0, 0, 0) if fill_choice == "1" else (255, 255, 255, 255)
                 
-                # Створюємо маску/латку та вставляємо
                 blank_patch = Image.new("RGBA", (right - left, bottom - top), fill_color)
                 img_modified.paste(blank_patch, (left, top))
                 
@@ -304,6 +302,209 @@ def adjust_contrast():
     except Exception as e:
         print(f"[Помилка] Не вдалося змінити контрастність: {e}")
 
+def combine_images():
+    """8. Об'єднання двох зображень горизонтально або вертикально"""
+    print("\n--- 8. Об'єднання двох зображень ---")
+    p1 = input("Введіть шлях до першого зображення: ").strip()
+    p2 = input("Введіть шлях до другого зображення: ").strip()
+    
+    if not (os.path.exists(p1) and os.path.exists(p2)):
+        print("Помилка: один або обидва файли не знайдено.")
+        return
+
+    print("Оберіть напрямок об'єднання:")
+    print("1. Горизонтально (поруч одне біля одного)")
+    print("2. Вертикально (одне під одним)")
+    direction = input("Ваш вибір (1/2): ").strip()
+
+    try:
+        img1 = Image.open(p1).convert("RGBA")
+        img2 = Image.open(p2).convert("RGBA")
+
+        if direction == "1":
+            # Масштабуємо друге зображення під висоту першого для охайного склеювання
+            target_h = img1.height
+            if img2.height != target_h:
+                new_w = int(img2.width * (target_h / img2.height))
+                img2 = img2.resize((new_w, target_h), Image.Resampling.LANCZOS)
+            
+            combined_w = img1.width + img2.width
+            combined = Image.new("RGBA", (combined_w, target_h), (0, 0, 0, 0))
+            combined.paste(img1, (0, 0))
+            combined.paste(img2, (img1.width, 0))
+
+        elif direction == "2":
+            # Масштабуємо друге зображення під ширину першого
+            target_w = img1.width
+            if img2.width != target_w:
+                new_h = int(img2.height * (target_w / img2.width))
+                img2 = img2.resize((target_w, new_h), Image.Resampling.LANCZOS)
+            
+            combined_h = img1.height + img2.height
+            combined = Image.new("RGBA", (target_w, combined_h), (0, 0, 0, 0))
+            combined.paste(img1, (0, 0))
+            combined.paste(img2, (0, img1.height))
+        else:
+            print("Невірний вибір напрямку.")
+            return
+
+        out_path = input("Введіть шлях для збереження (наприклад, combined.png): ").strip()
+        if not out_path.lower().endswith((".png", ".webp")):
+            out_path = os.path.splitext(out_path)[0] + ".png"
+        combined.save(out_path)
+        print(f"[Успіх] Зображення успішно об'єднано та збережено у {out_path}")
+    except Exception as e:
+        print(f"[Помилка] Не вдалося об'єднати зображення: {e}")
+
+def add_watermark():
+    """9. Створення водяного знаку на зображенні"""
+    print("\n--- 9. Створення водяного знаку ---")
+    path = input("Введіть шлях до зображення: ").strip()
+    if not os.path.exists(path):
+        print("Файл не знайдено.")
+        return
+
+    try:
+        base_img = Image.open(path).convert("RGBA")
+        text = input("Введіть текст водяного знаку: ").strip()
+        font_size = int(input("Введіть розмір шрифту (наприклад, 36): ").strip() or "36")
+        
+        print("Введіть колір водяного знаку у форматі R,G,B (наприклад, 255,255,255):")
+        color_input = input("Колір (R,G,B): ").strip() or "255,255,255"
+        r, g, b = tuple(map(int, color_input.split(",")))
+        
+        opacity_percent = float(input("Введіть непрозорість (0-100%, наприклад 40): ").strip() or "40")
+        alpha = int(max(0.0, min(1.0, opacity_percent / 100.0)) * 255)
+
+        # Спроба завантажити системний шрифт TTF
+        font = None
+        font_candidates = ["arial.ttf", "DejaVuSans.ttf", "calibri.ttf", "/System/Library/Fonts/Helvetica.ttc"]
+        for f in font_candidates:
+            try:
+                font = ImageFont.truetype(f, font_size)
+                break
+            except IOError:
+                continue
+        if font is None:
+            font = ImageFont.load_default()
+
+        # Шар для малювання з прозорістю
+        txt_layer = Image.new("RGBA", base_img.size, (255, 255, 255, 0))
+        draw = ImageDraw.Draw(txt_layer)
+
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+
+        print("\nОберіть положення водяного знаку:")
+        print("1. По центру")
+        print("2. Правий нижній кут")
+        print("3. Лівий верхній кут")
+        print("4. Правий верхній кут")
+        print("5. Власні координати (X, Y)")
+        pos_choice = input("Ваш вибір (1-5): ").strip()
+
+        padding = 20
+        if pos_choice == "1":
+            pos = ((base_img.width - text_w) // 2, (base_img.height - text_h) // 2)
+        elif pos_choice == "2":
+            pos = (base_img.width - text_w - padding, base_img.height - text_h - padding)
+        elif pos_choice == "3":
+            pos = (padding, padding)
+        elif pos_choice == "4":
+            pos = (base_img.width - text_w - padding, padding)
+        elif pos_choice == "5":
+            x = int(input(f"X (0 до {base_img.width}): "))
+            y = int(input(f"Y (0 до {base_img.height}): "))
+            pos = (x, y)
+        else:
+            print("Невірний вибір. Використано положення по центру.")
+            pos = ((base_img.width - text_w) // 2, (base_img.height - text_h) // 2)
+
+        draw.text(pos, text, fill=(r, g, b, alpha), font=font)
+        watermarked = Image.alpha_composite(base_img, txt_layer)
+
+        out_path = input("Введіть шлях для збереження (наприклад, watermarked.png): ").strip()
+        if not out_path.lower().endswith((".png", ".webp")):
+            out_path = os.path.splitext(out_path)[0] + ".png"
+            
+        watermarked.save(out_path)
+        print(f"[Успіх] Водяний знак нанесено. Збережено у {out_path}")
+    except Exception as e:
+        print(f"[Помилка] Не вдалося додати водяний знак: {e}")
+
+def slideshow_player():
+    """10. Слайд-шоу з відтворенням зображень через Tkinter"""
+    print("\n--- 10. Слайд-шоу плеєр ---")
+    print("1. Завантажити всі зображення з папки")
+    print("2. Вказати перелік файлів через кому")
+    choice = input("Ваш вибір (1/2): ").strip()
+
+    images_paths = []
+    valid_exts = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+
+    if choice == "1":
+        folder = input("Введіть шлях до папки з зображеннями: ").strip()
+        if not os.path.isdir(folder):
+            print("Папку не знайдено.")
+            return
+        files = sorted(os.listdir(folder))
+        images_paths = [os.path.join(folder, f) for f in files if os.path.splitext(f)[1].lower() in valid_exts]
+    elif choice == "2":
+        paths_input = input("Введіть шляхи до зображень через кому: ").strip()
+        images_paths = [p.strip() for p in paths_input.split(",") if os.path.exists(p.strip())]
+    else:
+        print("Невірний вибір.")
+        return
+
+    if not images_paths:
+        print("Не знайдено жодного коректного зображення.")
+        return
+
+    delay_sec = float(input("Введіть затримку між слайдами в секундах (наприклад, 2.0): ").strip() or "2.0")
+    delay_ms = int(delay_sec * 1000)
+
+    # Запуск вікна відтворення через Tkinter
+    root = tk.Tk()
+    root.title("Слайд-шоу лабораторних робіт")
+    root.geometry("850x650")
+    root.configure(bg="#1e1e1e")
+
+    label_img = tk.Label(root, bg="#1e1e1e")
+    label_img.pack(expand=True, fill="both")
+
+    info_label = tk.Label(root, text="", font=("Arial", 11), fg="#dddddd", bg="#1e1e1e")
+    info_label.pack(side="bottom", pady=5)
+
+    idx = [0]
+
+    def next_slide():
+        if not root.winfo_exists():
+            return
+        img_path = images_paths[idx[0]]
+        try:
+            pil_img = Image.open(img_path)
+            # Підгонка зображення під розмір вікна зі збереженням пропорцій
+            win_w = max(400, root.winfo_width() - 40)
+            win_h = max(300, root.winfo_height() - 70)
+            pil_img.thumbnail((win_w, win_h), Image.Resampling.LANCZOS)
+            
+            photo = ImageTk.PhotoImage(pil_img)
+            label_img.config(image=photo)
+            label_img.image = photo
+            
+            info_label.config(text=f"[{idx[0] + 1}/{len(images_paths)}] {os.path.basename(img_path)} (Закрийте вікно для виходу)")
+        except Exception as e:
+            info_label.config(text=f"Помилка завантаження {img_path}: {e}")
+
+        idx[0] = (idx[0] + 1) % len(images_paths)
+        root.after(delay_ms, next_slide)
+
+    # Перший кадр викликаємо після повної ініціалізації вікна
+    root.after(100, next_slide)
+    print("Слайд-шоу запущено. Закрийте графічне вікно, щоб повернутися в консоль.")
+    root.mainloop()
+
 def main():
     while True:
         print("\n=======================================")
@@ -316,9 +517,12 @@ def main():
         print("5. Налаштування прозорості (альфа-канал)")
         print("6. Кадрування та розбиття на частини (Crop/Grid)")
         print("7. Збільшення/зміна контрастності")
+        print("8. Об'єднання двох зображень (Горизонтально/Вертикально)")
+        print("9. Створення водяного знаку (текст, прозорість, позиція)")
+        print("10. Слайд-шоу плеєр (Tkinter)")
         print("0. Вихід")
         
-        choice = input("Оберіть пункт меню (0-7): ").strip()
+        choice = input("Оберіть пункт меню (0-10): ").strip()
         if choice == "1":
             convert_formats()
         elif choice == "2":
@@ -333,6 +537,12 @@ def main():
             crop_and_split()
         elif choice == "7":
             adjust_contrast()
+        elif choice == "8":
+            combine_images()
+        elif choice == "9":
+            add_watermark()
+        elif choice == "10":
+            slideshow_player()
         elif choice == "0":
             print("Вихід з програми. До побачення!")
             break
