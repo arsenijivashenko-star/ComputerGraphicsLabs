@@ -535,36 +535,40 @@ def run_image_analysis_lab():
         print(f"[Помилка] Під час обробки виникла помилка: {e}")
 
 def apply_static_filter():
-    """11. Застосування статичного фільтра (розмиття, різкість, контури тощо)"""
-    print("\n--- 11. Застосування статичного фільтра ---")
+    """11. Застосування власного статичного фільтра (розмиття з нуля)"""
+    print("\n--- 11. Власний статичний фільтр (без PIL.ImageFilter) ---")
     path = input("Введіть шлях до зображення: ").strip().strip('"')
     if not os.path.exists(path):
         print("Файл не знайдено.")
         return
         
     try:
-        img = Image.open(path)
-        print("Виберіть фільтр:")
-        print("1. Розмиття (BLUR)")
-        print("2. Підвищення різкості (SHARPEN)")
-        print("3. Виділення контурів (CONTOUR)")
-        print("4. Ефект рельєфу (EMBOSS)")
-        choice = input("Ваш вибір (1-4): ").strip()
+        img = Image.open(path).convert("RGB")
+        img_arr = np.array(img, dtype=np.float32)
         
-        filters = {
-            "1": ImageFilter.BLUR,
-            "2": ImageFilter.SHARPEN,
-            "3": ImageFilter.CONTOUR,
-            "4": ImageFilter.EMBOSS
-        }
+        kernel = np.array([
+            [1, 1, 1],
+            [1, 1, 1],
+            [1, 1, 1]
+        ], dtype=np.float32)
+        kernel /= np.sum(kernel) 
         
-        if choice in filters:
-            img_filtered = img.filter(filters[choice])
-            out_path = input("Введіть шлях для збереження файлу: ").strip().strip('"')
-            img_filtered.save(out_path)
-            print(f"[Успіх] Відфільтроване зображення збережено у {out_path}")
-        else:
-            print("Невірний вибір.")
+        h, w, c = img_arr.shape
+        padded = np.pad(img_arr, ((1, 1), (1, 1), (0, 0)), mode='edge')
+        filtered_arr = np.zeros_like(img_arr)
+        
+        for i in range(h):
+            for j in range(w):
+                for channel in range(c):
+                    region = padded[i:i+3, j:j+3, channel]
+                    filtered_arr[i, j, channel] = np.sum(region * kernel)
+                    
+        filtered_arr = np.clip(filtered_arr, 0, 255).astype(np.uint8)
+        img_filtered = Image.fromarray(filtered_arr)
+        
+        out_path = input("Введіть шлях для збереження файлу: ").strip().strip('"')
+        img_filtered.save(out_path)
+        print(f"[Успіх] Власноруч відфільтроване зображення збережено у {out_path}")
     except Exception as e:
         print(f"[Помилка] Не вдалося застосувати фільтр: {e}")
 
@@ -583,7 +587,7 @@ def main():
         print("8. Об'єднання двох зображень (Горизонтально/Вертикально)")
         print("9. Створення водяного знаку (текст, прозорість, позиція)")
         print("10. Аналіз яскравості, гістограми та зміна кольоровості (експорт зображень)")
-        print("11. Застосування статичного фільтра (BLUR, SHARPEN тощо)")
+        print("11. Застосування статичного фільтра")
         print("0. Вихід")
         
         choice = input("Оберіть пункт меню (0-11): ").strip()
