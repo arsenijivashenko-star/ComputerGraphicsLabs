@@ -535,8 +535,7 @@ def run_image_analysis_lab():
         print(f"[Помилка] Під час обробки виникла помилка: {e}")
 
 def apply_static_filter():
-    """11. Застосування власного статичного фільтра (розмиття з нуля)"""
-    print("\n--- 11. Власний статичний фільтр (без PIL.ImageFilter) ---")
+    print("\n--- 11. Власний статичний фільтр")
     path = input("Введіть шлях до зображення: ").strip().strip('"')
     if not os.path.exists(path):
         print("Файл не знайдено.")
