@@ -586,7 +586,7 @@ def main():
         print("11. Застосування статичного фільтра (BLUR, SHARPEN тощо)")
         print("0. Вихід")
         
-        choice = input("Оберіть пункт меню (0-10): ").strip()
+        choice = input("Оберіть пункт меню (0-11): ").strip()
         if choice == "1":
             convert_formats()
         elif choice == "2":
