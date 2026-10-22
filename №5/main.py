@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image, ImageEnhance, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageEnhance, ImageDraw, ImageFont, ImageOps, ImageFilter
 
 def convert_formats():
     """1. Конвертація форматів зображень з порівнянням розмірів"""
@@ -533,6 +533,40 @@ def run_image_analysis_lab():
         print(f"\n[Успіх] Усі графічні результати експортовано до: {output_dir}")
     except Exception as e:
         print(f"[Помилка] Під час обробки виникла помилка: {e}")
+
+def apply_static_filter():
+    """11. Застосування статичного фільтра (розмиття, різкість, контури тощо)"""
+    print("\n--- 11. Застосування статичного фільтра ---")
+    path = input("Введіть шлях до зображення: ").strip().strip('"')
+    if not os.path.exists(path):
+        print("Файл не знайдено.")
+        return
+        
+    try:
+        img = Image.open(path)
+        print("Виберіть фільтр:")
+        print("1. Розмиття (BLUR)")
+        print("2. Підвищення різкості (SHARPEN)")
+        print("3. Виділення контурів (CONTOUR)")
+        print("4. Ефект рельєфу (EMBOSS)")
+        choice = input("Ваш вибір (1-4): ").strip()
+        
+        filters = {
+            "1": ImageFilter.BLUR,
+            "2": ImageFilter.SHARPEN,
+            "3": ImageFilter.CONTOUR,
+            "4": ImageFilter.EMBOSS
+        }
+        
+        if choice in filters:
+            img_filtered = img.filter(filters[choice])
+            out_path = input("Введіть шлях для збереження файлу: ").strip().strip('"')
+            img_filtered.save(out_path)
+            print(f"[Успіх] Відфільтроване зображення збережено у {out_path}")
+        else:
+            print("Невірний вибір.")
+    except Exception as e:
+        print(f"[Помилка] Не вдалося застосувати фільтр: {e}")
 
 def main():
     while True:
